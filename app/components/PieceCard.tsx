@@ -1,5 +1,7 @@
 import { colorById, photoSrc, subcategoryLabel } from "@/src/lib/domain";
 
+const REVIEW_LABEL = { behall: "Behåll", justera: "Justera", salj: "Sälj" } as const;
+
 export type PieceView = {
   id: string;
   name: string;
@@ -8,6 +10,7 @@ export type PieceView = {
   color: string;
   photoMime?: string | null;
   photoData?: string | null;
+  review?: { verdict: keyof typeof REVIEW_LABEL } | null;
 };
 
 export function PieceCard({ piece }: { piece: PieceView }) {
@@ -22,6 +25,7 @@ export function PieceCard({ piece }: { piece: PieceView }) {
       <figcaption>
         <strong>{piece.name}</strong>
         <span>{meta}</span>
+        {piece.review ? <span className="badge">{REVIEW_LABEL[piece.review.verdict]}</span> : null}
       </figcaption>
     </figure>
   );

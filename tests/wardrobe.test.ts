@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { advise } from "../src/lib/advise";
+import { brandSize, brandSizes } from "../src/lib/brand-sizes";
 import { EXAMPLE_PIECES } from "../src/lib/example";
 import { suggestLooks } from "../src/lib/engine";
 import { decodeImage } from "../src/lib/images";
 import { sizeHints } from "../src/lib/sizes";
-import { insertGarment, listGarments, saveProfile } from "../src/lib/store";
+import { getReview, insertGarment, listGarments, saveProfile, saveReview } from "../src/lib/store";
+import { decide, type FitAnswers } from "../src/lib/verdict";
 import { emptyProfile, type Piece } from "../src/lib/domain";
 
 const TINY_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
@@ -202,5 +204,92 @@ describe("bilder och lagring", () => {
     assert.equal(listed.length, 1);
     assert.deepEqual(listed[0]?.seasons, ["alla"]);
     assert.equal(listed[0]?.favorite, true);
+    assert.equal(listed[0]?.review, null);
+  });
+
+  it("sparar bedömningen på plagget", async () => {
+    const owner = `test:${crypto.randomUUID()}`;
+    const garment = await insertGarment(
+      owner,
+      "ex-test-byxa",
+      {
+        name: "Testbyxa",
+        category: "underdel",
+        subcategory: "jeans",
+        color: "denim",
+        patterned: false,
+        material: "denim",
+        brand: "",
+        seasons: ["alla"],
+        formality: "vardag",
+        silhouette: "normal",
+        condition: "bra",
+        priceSek: null,
+        fitNote: "",
+        notes: "",
+        favorite: false,
+        inRotation: true,
+        photo: null,
+        clearPhoto: true,
+      },
+      "own",
+    );
+    await saveReview(owner, garment.id, goodFit(), "behall", "Behåll.", undefined);
+    const listed = await listGarments(owner);
+    assert.equal(listed[0]?.review?.verdict, "behall");
+    const review = await getReview(owner, garment.id);
+    assert.equal(review?.summary, "Behåll.");
+    assert.equal(review?.shoulder, "bra");
+  });
+});
+
+const goodFit = (): FitAnswers => ({
+  shoulder: "bra",
+  ease: "bra",
+  waist: "bra",
+  length: "bra",
+  fabric: "bra",
+  style: "ratt",
+});
+
+describe("storlek per märke", () => {
+  it("läser COS, Uniqlo och Filippa K från tabell", () => {
+    const herr = brandSize({ ...emptyProfile(), sizeSystem: "herr", chestCm: 100, waistCm: 84 }, "COS");
+    const herrText = herr?.lines.map((line) => line.text).join(" ") ?? "";
+    assert.match(herrText, /Överdel: EU 50/);
+    assert.match(herrText, /Byxor: EU 48/);
+    const uniqlo = brandSize({ ...emptyProfile(), sizeSystem: "herr", chestCm: 100, waistCm: 84 }, "Uniqlo");
+    const uniqloText = uniqlo?.lines.map((line) => line.text).join(" ") ?? "";
+    assert.match(uniqloText, /Överdel: M\./);
+    assert.match(uniqloText, /Byxor: M, på gränsen till L/);
+    const filippa = brandSize({ ...emptyProfile(), sizeSystem: "dam", chestCm: 88, waistCm: 72, hipsCm: 99 }, "Filippa K");
+    const filippaText = filippa?.lines.map((line) => line.text).join(" ") ?? "";
+    assert.match(filippaText, /Överdel: EU 38/);
+    assert.match(filippaText, /Byxor: EU 38/);
+  });
+
+  it("hittar inte på en EU-storlek när tabell saknas", () => {
+    assert.equal(brandSizes(emptyProfile()).length, 0);
+    const tiger = brandSize({ ...emptyProfile(), sizeSystem: "herr", chestCm: 100 }, "Tiger of Sweden");
+    const tigerText = tiger?.lines.map((line) => line.text).join(" ") ?? "";
+    assert.match(tigerText, /100 cm/);
+    assert.match(tigerText, /smalare/);
+    assert.equal(/EU \d/.test(tigerText), false);
+    const nudie = brandSize({ ...emptyProfile(), sizeSystem: "herr", waistCm: 84 }, "Nudie Jeans");
+    assert.match(nudie?.lines.map((line) => line.text).join(" ") ?? "", /W33/);
+    const open = brandSize({ ...emptyProfile(), sizeSystem: "unisex", chestCm: 100, waistCm: 84 }, "COS");
+    const both = open?.lines.map((line) => line.text).join(" ") ?? "";
+    assert.match(both, /Herr, överdel: EU 50/);
+    assert.match(both, /Dam, överdel:/);
+  });
+});
+
+describe("behåll eller sälj", () => {
+  it("säljer tight och fel stil, behåller en bas som sitter och justerar en lång fåll", () => {
+    const base = { category: "overdel" as const, duplicate: false, essential: false, condition: "bra" as const };
+    assert.equal(decide({ ...base, answers: { ...goodFit(), ease: "stramt", style: "fel" } }).verdict, "salj");
+    assert.equal(decide({ ...base, essential: true, answers: goodFit() }).verdict, "behall");
+    assert.equal(decide({ ...base, answers: { ...goodFit(), length: "lang" } }).verdict, "justera");
+    assert.equal(decide({ ...base, duplicate: true, answers: { ...goodFit(), style: "tveksam" } }).verdict, "salj");
   });
 });

@@ -17,6 +17,8 @@ import {
   type Season,
 } from "@/src/lib/domain";
 import { api, compressImage } from "../lib/api";
+import { FitReview } from "./FitReview";
+import { PhotoGuide } from "./PhotoGuide";
 import { PieceCard } from "./PieceCard";
 
 type Draft = {
@@ -351,12 +353,30 @@ export function Garderob() {
               <label className="field check"><input type="checkbox" checked={draft.patterned} onChange={(event) => patch({ patterned: event.target.checked })} /> Mönstrad</label>
               <label className="field check"><input type="checkbox" checked={draft.favorite} onChange={(event) => patch({ favorite: event.target.checked })} /> Favorit, välj den oftare</label>
               <label className="field check wide"><input type="checkbox" checked={draft.inRotation} onChange={(event) => patch({ inRotation: event.target.checked })} /> Ta med i looks</label>
-              <label className="field wide">Bild
-                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void onPhoto(event.target.files?.[0])} />
-              </label>
+              <div className="field wide">
+                <details className="measure-help">
+                  <summary>Så tar du produktbilden, samma varje gång</summary>
+                  <PhotoGuide category={draft.category} part="product" />
+                </details>
+                <label>Produktbild, den du kan lägga på Vinted
+                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void onPhoto(event.target.files?.[0])} />
+                </label>
+              </div>
             </div>
             {preview ? <img src={preview} alt="" style={{ width: 160, marginTop: 12 }} /> : null}
-            {preview ? <button className="btn-text" type="button" onClick={() => patch({ photo: null, photoData: null, photoMime: null, clearPhoto: true })}>Ta bort bild</button> : null}
+            {preview ? <button className="btn-text" type="button" onClick={() => patch({ photo: null, photoData: null, photoMime: null, clearPhoto: true })}>Ta bort produktbild</button> : null}
+            {editing ? (
+              <FitReview
+                garmentId={editing}
+                category={draft.category}
+                onReview={(review) => {
+                  const id = editing;
+                  setGarments((current) => current.map((item) => (item.id === id ? { ...item, review } : item)));
+                }}
+              />
+            ) : (
+              <p className="dek">Spara plagget först. Sen kan du ta kort på dig med det på och få ett förslag om du ska behålla, justera eller sälja det.</p>
+            )}
             {pairings.length > 0 ? (
               <section>
                 <h2 style={{ fontSize: 22, marginTop: 18 }}>Går ihop med</h2>

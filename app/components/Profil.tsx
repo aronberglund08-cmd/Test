@@ -13,10 +13,13 @@ import {
   type StyleImage,
   type StyleProfile,
 } from "@/src/lib/domain";
+import { brandSizes, BRAND_SIZE_NOTE } from "@/src/lib/brand-sizes";
+import { measureGuide } from "@/src/lib/measuring";
 import { sizeHints } from "@/src/lib/sizes";
 import { api, compressImage } from "../lib/api";
+import { PhotoGuide } from "./PhotoGuide";
 
-type Tab = "matt" | "stil";
+type Tab = "matt" | "stil" | "foto";
 
 export function Profil() {
   const [tab, setTab] = useState<Tab>("matt");
@@ -42,6 +45,7 @@ export function Profil() {
   }, []);
 
   const hints = useMemo(() => sizeHints(profile), [profile]);
+  const sizes = useMemo(() => brandSizes(profile), [profile]);
 
   function setMeasure(key: keyof Profile, value: string) {
     setSaved("");
@@ -143,10 +147,11 @@ export function Profil() {
     <>
       <p className="eyebrow">Bara för dig</p>
       <h1>Mått och stil</h1>
-      <p className="dek">Måtten stannar i din garderob. De används till storlekstips och inget annat.</p>
+      <p className="dek">Måtten stannar i din garderob. De används till storlekstips, också per märke.</p>
       <div className="filters" role="tablist">
         <button className="chip" type="button" aria-pressed={tab === "matt"} onClick={() => setTab("matt")}>Mått</button>
         <button className="chip" type="button" aria-pressed={tab === "stil"} onClick={() => setTab("stil")}>Stil och budget</button>
+        <button className="chip" type="button" aria-pressed={tab === "foto"} onClick={() => setTab("foto")}>Foto</button>
       </div>
       {error ? <p className="alert" role="alert">{error}</p> : null}
       {saved ? <p className="banner">{saved}</p> : null}
@@ -164,15 +169,15 @@ export function Profil() {
                   {FITS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                 </select>
               </label>
-              <Measure label="Längd, cm" value={profile.heightCm} onChange={(value) => setMeasure("heightCm", value)} />
-              <Measure label="Byst eller bröstkorg, cm" value={profile.chestCm} onChange={(value) => setMeasure("chestCm", value)} />
-              <Measure label="Midja, cm" value={profile.waistCm} onChange={(value) => setMeasure("waistCm", value)} />
-              <Measure label="Höft, cm" value={profile.hipsCm} onChange={(value) => setMeasure("hipsCm", value)} />
-              <Measure label="Axelbredd, cm" value={profile.shoulderCm} onChange={(value) => setMeasure("shoulderCm", value)} />
-              <Measure label="Innerben, cm" value={profile.inseamCm} onChange={(value) => setMeasure("inseamCm", value)} />
-              <Measure label="Ärmlängd, cm" value={profile.sleeveCm} onChange={(value) => setMeasure("sleeveCm", value)} />
-              <Measure label="Hals, cm" value={profile.neckCm} onChange={(value) => setMeasure("neckCm", value)} />
-              <Measure label="Skor, EU" value={profile.shoeEu} onChange={(value) => setMeasure("shoeEu", value)} />
+              <Measure label="Längd, cm" help={measureGuide("heightCm")} value={profile.heightCm} onChange={(value) => setMeasure("heightCm", value)} />
+              <Measure label="Byst eller bröstkorg, cm" help={measureGuide("chestCm")} value={profile.chestCm} onChange={(value) => setMeasure("chestCm", value)} />
+              <Measure label="Midja, cm" help={measureGuide("waistCm")} value={profile.waistCm} onChange={(value) => setMeasure("waistCm", value)} />
+              <Measure label="Höft, cm" help={measureGuide("hipsCm")} value={profile.hipsCm} onChange={(value) => setMeasure("hipsCm", value)} />
+              <Measure label="Axelbredd, cm" help={measureGuide("shoulderCm")} value={profile.shoulderCm} onChange={(value) => setMeasure("shoulderCm", value)} />
+              <Measure label="Innerben, cm" help={measureGuide("inseamCm")} value={profile.inseamCm} onChange={(value) => setMeasure("inseamCm", value)} />
+              <Measure label="Ärmlängd, cm" help={measureGuide("sleeveCm")} value={profile.sleeveCm} onChange={(value) => setMeasure("sleeveCm", value)} />
+              <Measure label="Hals, cm" help={measureGuide("neckCm")} value={profile.neckCm} onChange={(value) => setMeasure("neckCm", value)} />
+              <Measure label="Skor, EU" help={measureGuide("shoeEu")} value={profile.shoeEu} onChange={(value) => setMeasure("shoeEu", value)} />
               <label className="field wide">Anteckning om passform
                 <textarea value={profile.notes} onChange={(event) => setProfile({ ...profile, notes: event.target.value })} />
               </label>
@@ -186,7 +191,24 @@ export function Profil() {
             {hints.length === 0 ? <p>Fyll i måtten så skrivs storlekstipsen här.</p> : hints.map((line) => <p key={line}>{line}</p>)}
           </aside>
         </div>
-      ) : (
+      ) : null}
+      {tab === "matt" ? (
+        <section className="size-board">
+          <h2>Din storlek hos märkena</h2>
+          <p className="dek">{BRAND_SIZE_NOTE}</p>
+          {sizes.length === 0 ? <p>Fyll i byst eller bröstkorg, midja och höft. Storleken räknas ut vartefter.</p> : (
+            <ul className="brand-list">
+              {sizes.map((item) => (
+                <li key={item.brand}>
+                  <h3>{item.brand}</h3>
+                  {item.lines.map((line) => <p key={line.text}>{line.text}</p>)}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+      {tab === "stil" ? (
         <div>
           <h2>Riktning</h2>
           <p className="dek">Välj högst fyra. De styr både looks och vilka märken som föreslås.</p>
@@ -217,7 +239,13 @@ export function Profil() {
           <ImageGroup title="Stilbilder" text="Ladda upp plagg, looks eller personer vars snitt du vill åt." kind="stil" images={images} onUpload={upload} onCaption={caption} onRemove={removeImage} />
           <ImageGroup title="Budgetbilder" text="En skärmbild på ett plagg med pris, eller en påse du tycker är rimlig. Skriv beloppet i bildtexten." kind="budget" images={images} onUpload={upload} onCaption={caption} onRemove={removeImage} />
         </div>
-      )}
+      ) : null}
+      {tab === "foto" ? (
+        <div>
+          <p className="dek">Samma ljus, samma bakgrund och samma avstånd, så att ett par byxor ser ut som nästa. Produktbilden kan du lägga på Vinted. Bilden på kroppen används bara till passformen.</p>
+          <PhotoGuide part="all" />
+        </div>
+      ) : null}
       <p style={{ marginTop: 48 }}>
         <button className="btn-text" type="button" disabled={busy} onClick={() => (confirmReset ? void resetAll() : setConfirmReset(true))}>
           {confirmReset ? "Radera allt på riktigt" : "Radera hela garderoben"}
@@ -227,11 +255,17 @@ export function Profil() {
   );
 }
 
-function Measure({ label, value, onChange }: { label: string; value: number | null; onChange: (value: string) => void }) {
+function Measure({ label, help, value, onChange }: { label: string; help: string; value: number | null; onChange: (value: string) => void }) {
+  const id = `matt-${label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
   return (
-    <label className="field">{label}
-      <input inputMode="decimal" value={value ?? ""} onChange={(event) => onChange(event.target.value)} />
-    </label>
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <input id={id} inputMode="decimal" value={value ?? ""} onChange={(event) => onChange(event.target.value)} />
+      <details className="measure-help">
+        <summary>Så mäter du</summary>
+        <p>{help}</p>
+      </details>
+    </div>
   );
 }
 

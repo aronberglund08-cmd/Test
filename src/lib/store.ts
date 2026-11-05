@@ -1,4 +1,5 @@
 import type { GarmentInput } from "./validate";
+import type { FitAnswers } from "./verdict";
 import { sql } from "./db";
 import {
   emptyProfile,
@@ -107,6 +108,9 @@ function mapGarment(row: Row): Garment {
     notes: typeof row.notes === "string" ? row.notes : "",
     photoMime: typeof row.photo_mime === "string" ? row.photo_mime : null,
     photoData: typeof row.photo_data === "string" ? row.photo_data : null,
+    review: row.review_verdict === "behall" || row.review_verdict === "justera" || row.review_verdict === "salj"
+      ? { verdict: row.review_verdict, summary: typeof row.review_summary === "string" ? row.review_summary : "" }
+      : null,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at ?? ""),
   };
 }
@@ -227,10 +231,76 @@ export async function deleteStyleImage(owner: string, id: string): Promise<boole
 
 export async function listGarments(owner: string): Promise<Garment[]> {
   const rows = await sql<Row>(
-    "select * from garments where owner = $1 order by favorite desc, created_at desc",
+    `select g.*, r.verdict as review_verdict, r.summary as review_summary
+     from garments g
+     left join fit_reviews r on r.owner = g.owner and r.garment_id = g.id
+     where g.owner = $1
+     order by g.favorite desc, g.created_at desc`,
     [owner],
   );
   return rows.map(mapGarment);
+}
+
+export type StoredReview = FitAnswers & {
+  verdict: "behall" | "justera" | "salj";
+  summary: string;
+  photoMime: string | null;
+  photoData: string | null;
+};
+
+function mapStoredReview(row: Row): StoredReview {
+  return {
+    shoulder: row.shoulder as StoredReview["shoulder"],
+    ease: row.ease as StoredReview["ease"],
+    waist: row.waist as StoredReview["waist"],
+    length: row.length as StoredReview["length"],
+    fabric: row.fabric as StoredReview["fabric"],
+    style: row.style as StoredReview["style"],
+    verdict: row.verdict as StoredReview["verdict"],
+    summary: typeof row.summary === "string" ? row.summary : "",
+    photoMime: typeof row.photo_mime === "string" ? row.photo_mime : null,
+    photoData: typeof row.photo_data === "string" ? row.photo_data : null,
+  };
+}
+
+export async function getReview(owner: string, garmentId: string): Promise<StoredReview | null> {
+  const rows = await sql<Row>("select * from fit_reviews where owner = $1 and garment_id = $2", [owner, garmentId]);
+  return rows[0] ? mapStoredReview(rows[0]) : null;
+}
+
+export async function saveReview(
+  owner: string,
+  garmentId: string,
+  answers: FitAnswers,
+  verdict: StoredReview["verdict"],
+  summary: string,
+  photo: { mime: string; data: string } | null | undefined,
+): Promise<StoredReview> {
+  const current = await sql<Row>("select photo_mime, photo_data from fit_reviews where owner = $1 and garment_id = $2", [owner, garmentId]);
+  const mime = photo ? photo.mime : photo === null ? null : (typeof current[0]?.photo_mime === "string" ? current[0].photo_mime : null);
+  const data = photo ? photo.data : photo === null ? null : (typeof current[0]?.photo_data === "string" ? current[0].photo_data : null);
+  const rows = await sql<Row>(
+    `insert into fit_reviews (
+      owner, garment_id, shoulder, ease, waist, length, fabric, style, verdict, summary, photo_mime, photo_data, updated_at
+    ) values (
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now()
+    )
+    on conflict (owner, garment_id) do update set
+      shoulder = excluded.shoulder,
+      ease = excluded.ease,
+      waist = excluded.waist,
+      length = excluded.length,
+      fabric = excluded.fabric,
+      style = excluded.style,
+      verdict = excluded.verdict,
+      summary = excluded.summary,
+      photo_mime = excluded.photo_mime,
+      photo_data = excluded.photo_data,
+      updated_at = now()
+    returning *`,
+    [owner, garmentId, answers.shoulder, answers.ease, answers.waist, answers.length, answers.fabric, answers.style, verdict, summary, mime, data],
+  );
+  return mapStoredReview(rows[0]);
 }
 
 export async function countGarments(owner: string): Promise<number> {
@@ -329,6 +399,7 @@ async function detach(owner: string, ids: string[]): Promise<void> {
 
 export async function deleteGarment(owner: string, id: string): Promise<boolean> {
   await detach(owner, [id]);
+  await sql("delete from fit_reviews where owner = $1 and garment_id = $2", [owner, id]);
   const rows = await sql("delete from garments where owner = $1 and id = $2 returning id", [owner, id]);
   return rows.length > 0;
 }
@@ -372,6 +443,10 @@ export async function deleteExamples(owner: string): Promise<number> {
   const rows = await sql<{ id: string }>("select id from garments where owner = $1 and source = 'example'", [owner]);
   const ids = rows.map((row) => String(row.id));
   await detach(owner, ids);
+  await sql(
+    "delete from fit_reviews where owner = $1 and garment_id in (select id from garments where owner = $1 and source = 'example')",
+    [owner],
+  );
   const deleted = await sql("delete from garments where owner = $1 and source = 'example' returning id", [owner]);
   return deleted.length;
 }
@@ -437,6 +512,7 @@ export async function deleteWish(owner: string, id: string): Promise<boolean> {
 export async function resetOwner(owner: string): Promise<void> {
   await sql("delete from wishes where owner = $1", [owner]);
   await sql("delete from outfits where owner = $1", [owner]);
+  await sql("delete from fit_reviews where owner = $1", [owner]);
   await sql("delete from garments where owner = $1", [owner]);
   await sql("delete from style_images where owner = $1", [owner]);
   await sql("delete from style_profiles where owner = $1", [owner]);

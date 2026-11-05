@@ -190,12 +190,15 @@ export type Piece = {
   source: "own" | "example";
 };
 
+export type ReviewVerdict = "behall" | "justera" | "salj";
+
 export type Garment = Piece & {
   priceSek: number | null;
   fitNote: string;
   notes: string;
   photoMime: string | null;
   photoData: string | null;
+  review: { verdict: ReviewVerdict; summary: string } | null;
   createdAt: string;
 };
 

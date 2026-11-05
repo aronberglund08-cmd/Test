@@ -74,6 +74,6 @@ export function sizeHints(profile: Profile): string[] {
   }
   if (profile.fit === "los") lines.push("Du vill ha lös passform. Titta på märken med avslappnat snitt och prova en storlek upp om axeln sitter tight.");
   if (profile.fit === "tajt") lines.push("Du vill ha tajt passform. Håll dig till märken som sitter nära kroppen och prova rörelse, inte bara stillastående.");
-  if (lines.length > 0) lines.push("Ungefärligt. Märken skiljer sig, så jämför alltid med deras tabell.");
+  if (lines.length > 0) lines.push("Ungefärligt. Storlek hos varje märke står under måtten, och den jämförs med märkets tabell.");
   return lines;
 }

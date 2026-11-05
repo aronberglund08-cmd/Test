@@ -20,16 +20,19 @@ import {
   insertGarment,
   insertOutfit,
   insertWish,
+  getReview,
   listGarments,
   listOutfits,
   listStyleImages,
   listWishes,
   resetOwner,
   saveProfile,
+  saveReview,
   saveStyle,
   updateGarment,
   updateStyleImageCaption,
 } from "./store";
+import { decide, parseAnswers, wardrobeContext } from "./verdict";
 import { greetingForHour, seasonLabel, stockholmNow } from "./time";
 import { parseOccasion, validateCaption, validateGarment, validateOutfit, validateProfile, validateStyle, validateWish } from "./validate";
 
@@ -246,6 +249,31 @@ async function route(method: string, request: Request, parts: string[], viewer: 
     return json({ ok: true });
   }
 
+  if (method === "GET" && parts[0] === "garments" && parts[1] && isId(parts[1]) && parts[2] === "review" && parts.length === 3) {
+    return json({ review: await getReview(owner, parts[1]) });
+  }
+  if (method === "PUT" && parts[0] === "garments" && parts[1] && isId(parts[1]) && parts[2] === "review" && parts.length === 3) {
+    const body = await readBody(request);
+    if (body instanceof Response) return body;
+    const answers = parseAnswers(body.body);
+    if (!answers) return json({ error: "Fyll i alla punkter." }, 400);
+    const record = body.body as Record<string, unknown>;
+    let photo: { mime: "image/jpeg" | "image/png" | "image/webp"; data: string } | null | undefined = undefined;
+    if (record.photo === null) photo = null;
+    else if (record.photo !== undefined) {
+      const decoded = decodeImage(record.photo);
+      if (!decoded) return json({ error: "Bilden gick inte att läsa." }, 400);
+      photo = decoded;
+    }
+    const garments = await listGarments(owner);
+    const garment = garments.find((item) => item.id === parts[1]);
+    if (!garment) return json({ error: "Plagget finns inte." }, 404);
+    const context = wardrobeContext(garment, garments);
+    const result = decide({ answers, category: garment.category, condition: garment.condition, ...context });
+    const saved = await saveReview(owner, garment.id, answers, result.verdict, result.summary, photo);
+    return json(saved);
+  }
+
   if (key === "GET garments") return json(await listGarments(owner));
   if (key === "POST garments") {
     const body = await readBody(request);
@@ -327,7 +355,7 @@ async function route(method: string, request: Request, parts: string[], viewer: 
       monthBudget: style.monthBudgetSek,
       month,
     });
-    return json({ ...advice, wishes, style, month, season: seasonLabel(month), images: await listStyleImages(owner) });
+    return json({ ...advice, wishes, style, profile, month, season: seasonLabel(month), images: await listStyleImages(owner) });
   }
 
   if (key === "GET wishes") return json(await listWishes(owner));
