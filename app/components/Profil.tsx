@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AESTHETICS,
   COLORS,
@@ -98,18 +98,33 @@ export function Profil() {
     });
   }
 
-  async function upload(kind: "stil" | "budget", file: File | undefined) {
-    if (!file) return;
+  async function upload(kind: "stil" | "budget", files: File[]) {
+    const imagesToAdd = files.filter((file) => file.type.startsWith("image/"));
+    if (files.length > 0 && imagesToAdd.length === 0) {
+      setError("Det där är ingen bild.");
+      return;
+    }
+    if (imagesToAdd.length === 0) return;
+    setBusy(true);
     setError("");
+    setSaved("");
+    let added = 0;
     try {
-      const photo = await compressImage(file);
-      const image = await api<StyleImage>("/api/style-images", {
-        method: "POST",
-        body: JSON.stringify({ kind, photo, caption: "" }),
-      });
-      setImages((current) => [image, ...current]);
+      for (const file of imagesToAdd) {
+        const photo = await compressImage(file);
+        const image = await api<StyleImage>("/api/style-images", {
+          method: "POST",
+          body: JSON.stringify({ kind, photo, caption: "" }),
+        });
+        setImages((current) => [image, ...current]);
+        added += 1;
+      }
+      setSaved(added === 1 ? "Bilden är tillagd." : `${added} bilder är tillagda.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Något gick fel.");
+      if (added > 0) setSaved(added === 1 ? "En bild hann läggas till." : `${added} bilder hann läggas till.`);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -236,7 +251,7 @@ export function Profil() {
           <div className="actions">
             <button className="btn" type="button" disabled={busy} onClick={() => void saveStyle()}>Spara stil</button>
           </div>
-          <ImageGroup title="Stilbilder" text="Ladda upp plagg, looks eller personer vars snitt du vill åt." kind="stil" images={images} onUpload={upload} onCaption={caption} onRemove={removeImage} />
+          <ImageGroup title="Looken du vill åt" text="Släpp bilder på rutan, eller klicka i den och klistra in. Flera på en gång går bra. Det är den looken kläderna ska närma sig." kind="stil" images={images} onUpload={upload} onCaption={caption} onRemove={removeImage} dropPaste />
           <ImageGroup title="Budgetbilder" text="En skärmbild på ett plagg med pris, eller en påse du tycker är rimlig. Skriv beloppet i bildtexten." kind="budget" images={images} onUpload={upload} onCaption={caption} onRemove={removeImage} />
         </div>
       ) : null}
@@ -279,6 +294,20 @@ function ColorPick({ values, onToggle }: { values: string[]; onToggle: (id: Styl
   );
 }
 
+function transferFiles(data: DataTransfer | null): File[] {
+  if (!data) return [];
+  const fromFiles = [...data.files];
+  if (fromFiles.length > 0) return fromFiles;
+  const fromItems: File[] = [];
+  for (const item of data.items) {
+    if (item.kind === "file") {
+      const file = item.getAsFile();
+      if (file) fromItems.push(file);
+    }
+  }
+  return fromItems;
+}
+
 function ImageGroup({
   title,
   text,
@@ -287,38 +316,122 @@ function ImageGroup({
   onUpload,
   onCaption,
   onRemove,
+  dropPaste = false,
 }: {
   title: string;
   text: string;
   kind: "stil" | "budget";
   images: StyleImage[];
-  onUpload: (kind: "stil" | "budget", file: File | undefined) => void;
+  onUpload: (kind: "stil" | "budget", files: File[]) => void;
   onCaption: (id: string, value: string) => void;
   onRemove: (id: string) => void;
+  dropPaste?: boolean;
 }) {
+  const [over, setOver] = useState(false);
+  const depth = useRef(0);
   const mine = images.filter((image) => image.kind === kind);
+
+  useEffect(() => {
+    if (!dropPaste) return;
+    function onPaste(event: ClipboardEvent) {
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || (active instanceof HTMLElement && active.isContentEditable)) return;
+      const files = transferFiles(event.clipboardData);
+      if (files.length === 0) return;
+      event.preventDefault();
+      onUpload(kind, files);
+    }
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [dropPaste, kind, onUpload]);
+
+  function take(files: File[]) {
+    if (files.length > 0) onUpload(kind, files);
+  }
+
+  const pictures = (
+    <div className="grid" style={{ marginTop: 12 }}>
+      {mine.map((image) => {
+        const src = photoSrc(image.mime, image.data);
+        return (
+          <figure key={image.id} className="piece">
+            {src ? <img src={src} alt={image.caption || title} style={{ aspectRatio: "3/4", objectFit: "cover", width: "100%" }} /> : null}
+            <figcaption>
+              <input aria-label="Bildtext" defaultValue={image.caption} placeholder="Vad vill du åt?" onBlur={(event) => onCaption(image.id, event.target.value)} />
+              <button className="btn-text" type="button" onClick={() => onRemove(image.id)}>Ta bort</button>
+            </figcaption>
+          </figure>
+        );
+      })}
+    </div>
+  );
+
   return (
     <section style={{ marginTop: 28 }}>
       <h2>{title}</h2>
       <p className="dek">{text}</p>
-      <label className="btn-ghost">
-        Ladda upp bild
-        <input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(event) => onUpload(kind, event.target.files?.[0])} />
-      </label>
-      <div className="grid" style={{ marginTop: 12 }}>
-        {mine.map((image) => {
-          const src = photoSrc(image.mime, image.data);
-          return (
-            <figure key={image.id} className="piece">
-              {src ? <img src={src} alt={image.caption || title} style={{ aspectRatio: "3/4", objectFit: "cover", width: "100%" }} /> : null}
-              <figcaption>
-                <input aria-label="Bildtext" defaultValue={image.caption} placeholder="Vad vill du åt?" onBlur={(event) => onCaption(image.id, event.target.value)} />
-                <button className="btn-text" type="button" onClick={() => onRemove(image.id)}>Ta bort</button>
-              </figcaption>
-            </figure>
-          );
-        })}
-      </div>
+      {dropPaste ? (
+        <div
+          className={over ? "dropzone over" : "dropzone"}
+          tabIndex={0}
+          aria-label="Looken du vill åt. Släpp eller klistra in bilder."
+          onDragEnter={(event) => {
+            event.preventDefault();
+            depth.current += 1;
+            setOver(true);
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "copy";
+          }}
+          onDragLeave={() => {
+            depth.current -= 1;
+            if (depth.current <= 0) {
+              depth.current = 0;
+              setOver(false);
+            }
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            depth.current = 0;
+            setOver(false);
+            take(transferFiles(event.dataTransfer));
+          }}
+        >
+          <p className="meta">Släpp bilderna här, eller klistra in. Textfält tar emot text, inte bilder.</p>
+          <label className="btn-ghost">
+            Välj bilder
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              hidden
+              onChange={(event) => {
+                take([...(event.target.files ?? [])]);
+                event.target.value = "";
+              }}
+            />
+          </label>
+          {pictures}
+        </div>
+      ) : (
+        <>
+          <label className="btn-ghost">
+            Ladda upp bild
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              hidden
+              onChange={(event) => {
+                take([...(event.target.files ?? [])]);
+                event.target.value = "";
+              }}
+            />
+          </label>
+          {pictures}
+        </>
+      )}
     </section>
   );
 }

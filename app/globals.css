@@ -219,6 +219,13 @@ textarea { min-height: 96px; resize: vertical; }
 .verdict strong { font-family: var(--serif); font-size: 28px; font-weight: 450; display: block; }
 .badge { display: block; margin-top: 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
 .size-board { margin-top: 8px; }
+.dropzone {
+  border: 1px dashed var(--line);
+  padding: 14px;
+  margin-top: 8px;
+  min-height: 148px;
+}
+.dropzone.over { border-color: var(--ink); background: var(--card); }
 blockquote {
   margin: 12px 0;
   font-family: var(--serif);
