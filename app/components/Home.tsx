@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { OCCASIONS, photoSrc, type Occasion } from "@/src/lib/domain";
-import { api } from "../lib/api";
+import { api, compressImage } from "../lib/api";
+import { DropSurface } from "./DropSurface";
 import { PieceCard, type PieceView } from "./PieceCard";
 
 type Look = { title: string; why: string; pieces: Array<PieceView & { slot: string; source: string }> };
@@ -32,6 +33,7 @@ export function Home() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [dropped, setDropped] = useState("");
 
   async function load(next: Occasion) {
     setLoading(true);
@@ -70,6 +72,32 @@ export function Home() {
     }
   }
 
+  async function addStyleImages(files: File[]) {
+    const images = files.filter((file) => file.type.startsWith("image/"));
+    if (files.length > 0 && images.length === 0) {
+      setError("Det där är ingen bild.");
+      return;
+    }
+    if (images.length === 0) return;
+    setError("");
+    setDropped("");
+    try {
+      const added: HomeData["images"] = [];
+      for (const file of images) {
+        const photo = await compressImage(file);
+        const image = await api<{ id: string; kind: string; caption: string; mime: string; data: string }>("/api/style-images", {
+          method: "POST",
+          body: JSON.stringify({ kind: "stil", photo, caption: "" }),
+        });
+        added.push(image);
+      }
+      setData((current) => (current ? { ...current, images: [...added, ...current.images] } : current));
+      setDropped(added.length === 1 ? "Bilden ligger i looken du vill åt." : `${added.length} bilder ligger i looken du vill åt.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Något gick fel.");
+    }
+  }
+
   async function saveLook() {
     if (!look) return;
     setBusy(true);
@@ -92,11 +120,14 @@ export function Home() {
     }
   }
 
+  const styleImages = data?.images.filter((image) => image.kind === "stil") ?? [];
+
   return (
-    <>
+    <DropSurface overlay="page" label="Släpp bilden i looken du vill åt" onFiles={(files) => void addStyleImages(files)}>
       <p className="eyebrow">{data ? `${data.dateLabel} · ${data.season}` : "Ateljé"}</p>
       {loading && !data ? <h1>Hämtar garderoben.</h1> : null}
       {error ? <p className="alert" role="alert">{error}</p> : null}
+      {dropped ? <p className="banner">{dropped}</p> : null}
       {empty ? (
         <>
           <h1>Tre plagg, sedan tänker Ateljé åt dig.</h1>
@@ -110,6 +141,7 @@ export function Home() {
             <Link className="btn" href="/garderob">Lägg in första plagget</Link>
             <button className="btn-ghost" type="button" onClick={() => void addExamples()} disabled={busy}>Visa en exempelgarderob</button>
           </div>
+          <StyleStrip images={styleImages} />
         </>
       ) : null}
       {data && !empty ? (
@@ -165,22 +197,7 @@ export function Home() {
                 : "Inget i garderoben passar det här tillfället och säsongen. Prova ett annat tillfälle, eller lägg till ett plagg."}
             </p>
           )}
-          {data.images.length > 0 ? (
-            <section>
-              <p className="kicker">Dina stilbilder</p>
-              <div className="film">
-                {data.images.filter((image) => image.kind === "stil").map((image) => {
-                  const src = photoSrc(image.mime, image.data);
-                  return src ? (
-                    <figure key={image.id}>
-                      <img src={src} alt={image.caption || "Stilreferens"} />
-                      {image.caption ? <figcaption className="meta">{image.caption}</figcaption> : null}
-                    </figure>
-                  ) : null;
-                })}
-              </div>
-            </section>
-          ) : null}
+          <StyleStrip images={styleImages} />
           <div className="split">
             <section>
               <h2>Så står garderoben</h2>
@@ -219,6 +236,27 @@ export function Home() {
           </div>
         </>
       ) : null}
-    </>
+    </DropSurface>
+  );
+}
+
+function StyleStrip({ images }: { images: HomeData["images"] }) {
+  if (images.length === 0) return <p className="meta">Släpp en bild var som helst på sidan. Den läggs i looken du vill åt.</p>;
+  return (
+    <section>
+      <p className="kicker">Dina stilbilder</p>
+      <p className="meta">Släpp en bild var som helst på sidan för att lägga till en till.</p>
+      <div className="film">
+        {images.map((image) => {
+          const src = photoSrc(image.mime, image.data);
+          return src ? (
+            <figure key={image.id}>
+              <img src={src} alt={image.caption || "Stilreferens"} />
+              {image.caption ? <figcaption className="meta">{image.caption}</figcaption> : null}
+            </figure>
+          ) : null;
+        })}
+      </div>
+    </section>
   );
 }

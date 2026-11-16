@@ -5,6 +5,7 @@ import type { Category } from "@/src/lib/domain";
 import { photoSrc } from "@/src/lib/domain";
 import type { FitAnswers, VerdictId } from "@/src/lib/verdict";
 import { api, compressImage } from "../lib/api";
+import { DropSurface } from "./DropSurface";
 import { PhotoGuide } from "./PhotoGuide";
 
 const QUESTIONS: { key: keyof FitAnswers; label: string; options: [string, string][] }[] = [
@@ -175,15 +176,20 @@ export function FitReview({
         <summary>Så tar du bilden på kroppen</summary>
         <PhotoGuide category={category} part="body" />
       </details>
-      <label className="field wide">Bild på kroppen, bara för passformen
-        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void onPhoto(event.target.files?.[0])} />
-      </label>
-      {preview ? <img src={preview} alt="" style={{ width: 160, marginTop: 8 }} /> : null}
-      {preview ? (
-        <button className="btn-text" type="button" onClick={() => { setPhoto(null); setPhotoData(null); setPhotoMime(null); setClearPhoto(true); }}>
-          Ta bort bilden på kroppen
-        </button>
-      ) : null}
+      <DropSurface
+        label="Släpp bilden på kroppen"
+        onFiles={(files) => void onPhoto(files.find((file) => file.type.startsWith("image/")))}
+      >
+        <label className="field wide">Bild på kroppen, bara för passformen. Du kan också släppa den här.
+          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void onPhoto(event.target.files?.[0])} />
+        </label>
+        {preview ? <img src={preview} alt="" style={{ width: 160, marginTop: 8 }} /> : null}
+        {preview ? (
+          <button className="btn-text" type="button" onClick={() => { setPhoto(null); setPhotoData(null); setPhotoMime(null); setClearPhoto(true); }}>
+            Ta bort bilden på kroppen
+          </button>
+        ) : null}
+      </DropSurface>
       {QUESTIONS.map((question) => (
         <fieldset key={question.key} className="choice-row">
           <legend>{question.label}</legend>

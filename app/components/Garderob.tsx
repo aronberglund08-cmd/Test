@@ -17,6 +17,7 @@ import {
   type Season,
 } from "@/src/lib/domain";
 import { api, compressImage } from "../lib/api";
+import { DropSurface } from "./DropSurface";
 import { FitReview } from "./FitReview";
 import { PhotoGuide } from "./PhotoGuide";
 import { PieceCard } from "./PieceCard";
@@ -353,18 +354,24 @@ export function Garderob() {
               <label className="field check"><input type="checkbox" checked={draft.patterned} onChange={(event) => patch({ patterned: event.target.checked })} /> Mönstrad</label>
               <label className="field check"><input type="checkbox" checked={draft.favorite} onChange={(event) => patch({ favorite: event.target.checked })} /> Favorit, välj den oftare</label>
               <label className="field check wide"><input type="checkbox" checked={draft.inRotation} onChange={(event) => patch({ inRotation: event.target.checked })} /> Ta med i looks</label>
-              <div className="field wide">
-                <details className="measure-help">
-                  <summary>Så tar du produktbilden, samma varje gång</summary>
-                  <PhotoGuide category={draft.category} part="product" />
-                </details>
-                <label>Produktbild, den du kan lägga på Vinted
-                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void onPhoto(event.target.files?.[0])} />
-                </label>
-              </div>
+              <DropSurface
+                className="wide"
+                label="Släpp produktbilden"
+                onFiles={(files) => void onPhoto(files.find((file) => file.type.startsWith("image/")))}
+              >
+                <div className="field wide">
+                  <details className="measure-help">
+                    <summary>Så tar du produktbilden, samma varje gång</summary>
+                    <PhotoGuide category={draft.category} part="product" />
+                  </details>
+                  <label>Produktbild, den du kan lägga på Vinted. Du kan också släppa den här.
+                    <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void onPhoto(event.target.files?.[0])} />
+                  </label>
+                </div>
+                {preview ? <img src={preview} alt="" style={{ width: 160, marginTop: 12 }} /> : null}
+                {preview ? <button className="btn-text" type="button" onClick={() => patch({ photo: null, photoData: null, photoMime: null, clearPhoto: true })}>Ta bort produktbild</button> : null}
+              </DropSurface>
             </div>
-            {preview ? <img src={preview} alt="" style={{ width: 160, marginTop: 12 }} /> : null}
-            {preview ? <button className="btn-text" type="button" onClick={() => patch({ photo: null, photoData: null, photoMime: null, clearPhoto: true })}>Ta bort produktbild</button> : null}
             {editing ? (
               <FitReview
                 garmentId={editing}

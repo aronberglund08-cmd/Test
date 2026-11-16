@@ -226,6 +226,36 @@ textarea { min-height: 96px; resize: vertical; }
   min-height: 148px;
 }
 .dropzone.over { border-color: var(--ink); background: var(--card); }
+.drop-surface { position: relative; min-width: 0; }
+.drop-surface.wide,
+.review .drop-surface { grid-column: 1 / -1; min-height: 132px; }
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  text-align: center;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--paper) 90%, var(--ink));
+  border: 2px dashed var(--ink);
+}
+.drop-overlay.page {
+  position: fixed;
+  z-index: 30;
+  padding: 24px;
+}
+.drop-overlay strong {
+  font-family: var(--serif);
+  font-size: 26px;
+  font-weight: 450;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  max-width: 16ch;
+}
+.drop-overlay.page strong { font-size: clamp(28px, 4vw, 44px); }
 blockquote {
   margin: 12px 0;
   font-family: var(--serif);

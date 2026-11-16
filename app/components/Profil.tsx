@@ -17,6 +17,7 @@ import { brandSizes, BRAND_SIZE_NOTE } from "@/src/lib/brand-sizes";
 import { measureGuide } from "@/src/lib/measuring";
 import { sizeHints } from "@/src/lib/sizes";
 import { api, compressImage } from "../lib/api";
+import { DropSurface, transferFiles } from "./DropSurface";
 import { PhotoGuide } from "./PhotoGuide";
 
 type Tab = "matt" | "stil" | "foto";
@@ -224,6 +225,19 @@ export function Profil() {
         </section>
       ) : null}
       {tab === "stil" ? (
+        <DropSurface
+          overlay="page"
+          label="Släpp bilden i looken du vill åt"
+          hintFor={(target) =>
+            target instanceof Element && target.closest("[data-drop-kind='budget']")
+              ? "Släpp bilden bland budgetbilderna"
+              : "Släpp bilden i looken du vill åt"
+          }
+          onFiles={(files, target) => {
+            const kind = target instanceof Element && target.closest("[data-drop-kind='budget']") ? "budget" : "stil";
+            void upload(kind, files);
+          }}
+        >
         <div>
           <h2>Riktning</h2>
           <p className="dek">Välj högst fyra. De styr både looks och vilka märken som föreslås.</p>
@@ -251,9 +265,10 @@ export function Profil() {
           <div className="actions">
             <button className="btn" type="button" disabled={busy} onClick={() => void saveStyle()}>Spara stil</button>
           </div>
-          <ImageGroup title="Looken du vill åt" text="Släpp bilder på rutan, eller klicka i den och klistra in. Flera på en gång går bra. Det är den looken kläderna ska närma sig." kind="stil" images={images} onUpload={upload} onCaption={caption} onRemove={removeImage} dropPaste />
-          <ImageGroup title="Budgetbilder" text="En skärmbild på ett plagg med pris, eller en påse du tycker är rimlig. Skriv beloppet i bildtexten." kind="budget" images={images} onUpload={upload} onCaption={caption} onRemove={removeImage} />
+          <ImageGroup title="Looken du vill åt" text="Släpp bilder var som helst på den här fliken, eller klistra in i rutan. Flera på en gång går bra. Det är den looken kläderna ska närma sig." kind="stil" images={images} onUpload={upload} onCaption={caption} onRemove={removeImage} dropPaste />
+          <ImageGroup title="Budgetbilder" text="En skärmbild på ett plagg med pris, eller en påse du tycker är rimlig. Skriv beloppet i bildtexten. Du kan också släppa bilderna på det här avsnittet." kind="budget" images={images} onUpload={upload} onCaption={caption} onRemove={removeImage} />
         </div>
+        </DropSurface>
       ) : null}
       {tab === "foto" ? (
         <div>
@@ -292,20 +307,6 @@ function ColorPick({ values, onToggle }: { values: string[]; onToggle: (id: Styl
       ))}
     </div>
   );
-}
-
-function transferFiles(data: DataTransfer | null): File[] {
-  if (!data) return [];
-  const fromFiles = [...data.files];
-  if (fromFiles.length > 0) return fromFiles;
-  const fromItems: File[] = [];
-  for (const item of data.items) {
-    if (item.kind === "file") {
-      const file = item.getAsFile();
-      if (file) fromItems.push(file);
-    }
-  }
-  return fromItems;
 }
 
 function ImageGroup({
@@ -367,7 +368,7 @@ function ImageGroup({
   );
 
   return (
-    <section style={{ marginTop: 28 }}>
+    <section style={{ marginTop: 28 }} data-drop-kind={kind}>
       <h2>{title}</h2>
       <p className="dek">{text}</p>
       {dropPaste ? (
@@ -395,7 +396,6 @@ function ImageGroup({
             event.preventDefault();
             depth.current = 0;
             setOver(false);
-            take(transferFiles(event.dataTransfer));
           }}
         >
           <p className="meta">Släpp bilderna här, eller klistra in. Textfält tar emot text, inte bilder.</p>
