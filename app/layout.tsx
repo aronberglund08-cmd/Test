@@ -1,19 +1,25 @@
 import type { Metadata } from "next";
-import { Manrope, Newsreader } from "next/font/google";
+import localFont from "next/font/local";
 import { Shell } from "./components/Shell";
 import "./globals.css";
 
-const serif = Newsreader({
-  subsets: ["latin"],
-  style: ["normal", "italic"],
-  weight: ["400", "500"],
+const serif = localFont({
+  src: [
+    { path: "./fonts/newsreader-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/newsreader-latin-400-italic.woff2", weight: "400", style: "italic" },
+    { path: "./fonts/newsreader-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/newsreader-latin-500-italic.woff2", weight: "500", style: "italic" },
+  ],
   variable: "--font-serif",
   display: "swap",
 });
 
-const sans = Manrope({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+const sans = localFont({
+  src: [
+    { path: "./fonts/manrope-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/manrope-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/manrope-latin-600-normal.woff2", weight: "600", style: "normal" },
+  ],
   variable: "--font-sans",
   display: "swap",
 });
